@@ -1,0 +1,553 @@
+---
+title: "Graphs & Visualizing graphs (Chapter 2&3 of SANDr)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Manipulating Network Data
+##Creating Network Graphs
+
+###Undirected and Directed Graphs
+
+Formally, a graph G = (V,E) is a mathematical structure consisting of a set V of vertices (also commonly called nodes) and a set E of edges (also commonly called links), where elements of E are unordered pairs {u, v} of distinct vertices u, v ∈ V . The number of vertices N<sub>v</sub> = |V| and the number of edges N<sub>e</sub> = |E| are sometimes called the order and size of the graph G, respectively. Often, and without loss of generality, we will label the vertices simply with the integers 1,...,N<sub>v</sub>, and the edges, analogously.
+
+In **igraph** there is an ‘igraph’ class for graphs. In this section, we will see a number of ways to create an object of the igraph class in R, and various ways to extract and summarize the information in that object.
+For small, toy graphs, the function `graph.formula` can be used. For example,
+
+```{r message=FALSE}
+library(igraph)
+g <- graph.formula(1-2, 1-3, 2-3, 2-4, 3-5, 4-5, 4-6,  4-7, 5-6, 6-7)
+```
+creates a graph object g with N<sub>v</sub> = 7 vertices
+
+```{r message=FALSE}
+V(g)
+```
+and N<sub>e</sub> = 10 edges
+```{r message=FALSE}
+E(g)
+```
+This same information, in a slightly more compressed format, is recovered easily using the relevant structure command.
+```{r message=FALSE}
+print_all(g)
+```
+
+A visual representation of this graph, generated simply through the command
+```{r message=FALSE}
+plot(g)
+```
+
+The character U seen accompanying the summary of g above indicates that our
+graph is undirected, in that there is no ordering in the vertices defining an edge. A graph G for which each edge in E has an ordering to its vertices (i.e., so that (u, v) is distinct from (u, v), for u, v ∈ V ) is called a directed graph or digraph. Such edges are called directed edges or arcs, with the direction of an arc (u, v) read from left to right, from the tail u to the head v. Note that digraphs may have two arcs between a pair of vertices, with the vertices playing opposite roles of head and tail for the respective arcs. In this case, the two arcs are said to be mutual.
+
+Directed edges in `graph.formula` are indicated using a minus/plus convention. Below is shown an example of a digraph consisting of three vertices, with two directed edges and one mutual edge.
+```{r message=FALSE}
+dg <- graph.formula(1-+2, 1-+3, 2++3)
+plot(dg)
+```
+
+We note that in defining both of the graphs above we have used the standard convention of labeling vertices with the numbers 1 through N<sub>v</sub>, which is also the default in **igraph**. In practice, however, we may already have natural labels, such as the names of people in a social network, or of genes in a gene regulatory network. Such labels can be used instead of the default choice by generating the graph with them explicitly.
+
+```{r message=FALSE}
+dg <- graph.formula(Sam-+Mary, Sam-+Tom, Mary++Tom)
+print_all(dg)
+```
+
+Alternatively, vertex labels can be changed from the default after initially creating the graph, by modifying the name vertex attribute of the graph object.
+```{r message=FALSE}
+V(dg)$name <- c("Sam", "Mary", "Tom")
+```
+
+###Representations for Graphs
+Realistically, we do not usually expect to enter a graph by hand, since most networks encountered in practice have at least tens of vertices and edges, if not tens of thousands (or even millions!). Rather, information for constructing a network graph typically will be stored in a data file. At the most elementary level, there are three basic formats: adjacency lists, edge lists, and adjacency matrices.
+An adjacency list representation of a graph G is simply an array of size N<sub>v</sub>, ordered with respect to the ordering of the vertices in V, each element of which is a list, where the ith list contains the set of all vertices j for which there is an edge from i to j. This is the representation usually used by **igraph**, evident in printing the output from the structure function `print_all` in the examples above.
+An edge list is a simple two-column list of all vertex pairs that are joined by an edge. In **igraph**, edge lists are used, for example, when printing the edge set E.
+```{r message=FALSE}
+E(dg)
+```
+The function `get.edgelist` returns an edge list as a two-column R matrix.
+
+```{r message=FALSE}
+get.edgelist(dg)
+```
+Finally, graphs can also be stored in matrix form. The N<sub>v</sub> × N<sub>v</sub> adjacency matrix
+for a graph G = (V,E), say A, is defined so that  
+Aij= 1, if{i,j}∈E, and 0, otherwise .
+In words, A is non-zero for entries whose row-column indices (i, j) correspond to vertices in G joined by an edge, from i to j, and zero, for those that are not. The matrix A will be symmetric for undirected graphs.
+```{r message=FALSE}
+get.adjacency(g)
+```
+This last choice of representation is often a natural one, given that matrices are fundamental data objects in most programming and software environments and that network graphs frequently are encoded in statistical models through their adjacency matrices. However, their use with the type of large, sparse networks commonly encountered in practice can be inefficient, unless coupled with the use of sparse matrix tools.
+
+In **igraph**, network data already loaded into R in these specific formats can be used to generate graphs using the functions `graph.adjlist`, `graph.edgelist`, and `graph.adjacency`, respectively. For data stored in a file, the function `read.graph` can be used. In fact, this latter function not only sup- ports the three formats discussed above, but also a number of other formats (e.g., such as GraphML, Pajek, etc.). Conversely, the function `write.graph` can be used to save graphs in various formats.
+
+
+###Operations on Graphs
+The graph(s) that we are able to load into R may not be the graph that we ultimately want. Various operations on the graph(s) we have available may be necessary, including extracting part of a graph, deleting vertices, adding edges, or even com- bining multiple graphs.
+
+The notion of a ‘part’ of a graph is captured through the concept of a subgraph. A graph H = (V<sub>H</sub>,E<sub>H</sub>) is a subgraph of another graph G = (V<sub>G</sub>,E<sub>G</sub>) if V<sub>H</sub> ⊆ V<sub>G</sub> and E<sub>H</sub> ⊆ E<sub>G</sub>. Often we are interested in an induced subgraph of a graph G, i.e., a subgraph G′ = (V′,E′), where V′ ⊆ V is a prespecified subset of vertices and E′ ⊆ E is the collection of edges to be found in G among that subset of vertices. For example, consider the subgraph of g induced by the first five vertices.
+
+```{r message=FALSE}
+h <- induced.subgraph(g, 1:5)
+print_all(h)
+```
+The inclusion or exclusion of vertices or edges in a graph G = (V,E) can be conceived of as the application of addition or subtraction operators, respectively, to the sets V and E. For example, the subgraph h generated just above could also have been created from g by removing the vertices 6 and 7.
+```{r message=FALSE}
+h <- g - vertices(c(6,7))
+```
+
+Similarly, g can be recovered from h by first adding these two vertices back in, and
+then, adding the appropriate edges.
+
+```{r message=FALSE}
+h <- h + vertices(c(6,7))
+g <- h + edges(c(4,6),c(4,7),c(5,6),c(6,7))
+```
+Finally, the basic set-theoretic concepts of union, disjoint union, intersection, difference, and complement all extend in a natural fashion to graphs. For example, the union of two graphs, say H<sub>1</sub> and H<sub>2</sub>, is a graph G in which vertices and edges are included if and only if they are included in at least one of H<sub>1</sub> or H<sub>2</sub>. For example, our toy graph g may be created through the union of the (induced) subgraph h defined above and a second appropriately defined subgraph.
+
+```{r message=FALSE}
+h1 <- h
+h2 <- graph.formula(4-6, 4-7, 5-6, 6-7) 
+g <- graph.union(h1,h2)
+```
+##Decorating Network Graphs
+###Vertex, Edge, and Graph Attributes
+
+At the heart of a network-based representation of data from a complex system will be a graph. But frequently there are other relevant data to be had as well. From a network-centric perspective, these other data can be thought of as attributes, i.e., values associated with the corresponding network graph. Equipping a graph with such attributes is referred to as decorating the graph. Typically, the vertices or edges of a graph (or both) are decorated with attributes, although the graph as a whole may be decorated as well. In **igraph**, the elements of graph objects (i.e., particularly the vertex and edge sequences, and subsets thereof) may be equipped with attributes simply by using the `$` operator.
+
+Vertex attributes are variables indexed by vertices, and may be of discrete or continuous type. Instances of the former type include the gender of actors in a social network, the infection status of computers in an Internet network in the midst of an on-line virus (e.g., a worm), and a list of biological pathways in which a protein in a protein–protein interaction network is known to participate, while an example of the latter type is the voltage potential levels in the brain measured at electrodes in an electrocorticogram (ECoG) grid. For example, recall that the names of the three actors in our toy digraph are
+
+```{r message=FALSE}
+V(dg)$name
+```
+Their gender is added to dg as
+
+```{r message=FALSE}
+V(dg)$gender <- c("M","F","M")
+```
+Note that the notion of vertex attributes also may be used advantageously to equip vertices with properties during the course of an analysis, either as input to or output from calculations within R. For example, this might mean associating the color red with our vertices
+
+```{r message=FALSE}
+V(g)$color <- "red"
+```
+to be used in plotting the graph (see Chap. 3). Or it might mean saving the values of some vertex characteristic we have computed, such as the types of vertex centrality measures to be introduced in Chap. 4.
+
+Edge attributes similarly are values of variables indexed by adjacent vertex pairs and, as with vertex attributes, they may be of both discrete or continuous type. Examples of discrete edge attributes include whether one gene regulates another in an inhibitory or excitatory fashion, or whether two countries have a friendly or antagonistic political relationship. Continuous edge attributes, on the other hand, often represent some measure of the strength of relationship between vertex pairs. For example, we might equip each edge in a network of email exchanges (with ver- tices representing email addresses) by the rate at which emails were exchanged over a given period of time. Or we might define an attribute on edges between adjacent stations in a subway network (e.g., the Paris metro) to represent the average time necessary during a given hour of the day for trains to run from one to station to the next.
+
+Often edge attributes can be thought of usefully, for the purposes of various analyses, as weights. Edge weights generally are non-negative, by convention, and often are scaled to fall between zero and one. A graph for which the edges are equipped with weights is referred to as a weighted graph.
+
+```{r message=FALSE}
+is.weighted(g)
+wg <- g
+E(wg)$weight <- runif(ecount(wg))
+is.weighted(wg)
+```
+As with vertex attributes, edge attributes may also be used to equip edges with properties to be used in calls to other R functions, such as the `plot` function.
+
+In principle, a graph itself may be decorated with an attribute, and indeed, it is possible to equip graph objects with attributes in **igraph**. The most natural use of this feature arguably is to equip a graph with relevant background information, such as a name
+
+
+```{r message=FALSE}
+g$name <- "Toy Graph"
+```
+
+###Using Data Frames
+Just as network graphs typically are not entered by hand for graphs of any nontrivial magnitude, but rather are encoded in data frames and files, so too attributes tend to be similarly encoded. For example, in R, a network graph and all vertex and edge attributes can be conveniently represented using two data frames, one with vertex information, and the other, with edge information. Under this approach, the first column of the vertex data frame contains the vertex names (i.e., either the default numerical labels or symbolic), while each of the other columns contain the values of a given vertex attribute. Similarly, the first two columns of the edge data frame contain an edge list defining the graph, while each of the other columns contain the values of a given edge attribute.
+
+Consider, for example, the lawyer data set of Lazega, introduced in Chap. 1. Collecting the information on collaborative working relationships, in the form of an edge list, in the data frame `elist.lazega`, and the various vertex attribute variables, in the data frame `v.attr.lazega`, they may be combined into a single graph object in **igraph** as
+
+```{r message=FALSE}
+library(sand)
+g.lazega <- graph.data.frame(elist.lazega,directed="FALSE",vertices=v.attr.lazega)
+g.lazega$name <- "Lazega Lawyers"
+```
+
+Our full set of network information on these
+```{r}
+vcount(g.lazega)
+```
+
+lawyers now consists of the
+```{r}
+ecount(g.lazega)
+```
+pairs that declared they work together, along with the eight vertex attributes
+```{r}
+list.vertex.attributes(g.lazega)
+```
+(in addition to the vertex name).
+
+We will see a variety of ways in the chapters that follow to characterize and
+model these network data and others like them.
+
+##Talking About Graphs
+###Basic Graph Concepts
+
+With the adoption of a graph-based framework for representing relational data in network analysis we inherit a rich vocabulary for discussing various important concepts related to graphs. We briefly review and demonstrate some of these here, as they are necessary for doing even the most basic of network analyses.
+
+As defined at the start of this chapter, a graph has no edges for which both ends connect to a single vertex (called loops) and no pairs of vertices with more than one edge between them (called multi-edges). An object with either of these properties is called a multi-graph. A graph that is not a multi-graph is called a simple graph, and its edges are referred to as proper edges.
+
+It is straightforward to determine whether or not a graph is simple. Our toy graph g is simple.
+
+```{r}
+is.simple(g)
+```
+
+But duplicating the edge between vertices 2 and 3, for instance, yields a multi-graph.
+```{r}
+mg <- g + edge(2,3)
+print_all(mg)
+is.simple(mg)
+```
+
+Checking whether or not a network graph is simple is a somewhat trivial but nevertheless important preliminary step in doing a typical network analysis, as many models and methods assume the input graph to be simple or behave differently if it is not.
+
+Note that it is straightforward, and indeed not uncommon in practice, to transform a multi-graph into a weighted graph, wherein each resulting proper edge is equipped with a weight equal to the multiplicity of that edge in the original multi-graph. For example, converting our toy multi-graph `mg` to a weighted graph results in a simple graph,
+
+```{r}
+E(mg)$weight <- 1
+wg2 <- simplify(mg)
+is.simple(wg2)
+```
+the edges which match our initial toy graph g,
+```{r}
+print_all(wg2)
+```
+but for which the third edge (i.e., connecting vertices 2 and 3) has a weight of 2.
+```{r}
+E(wg2)$weight
+```
+Moving beyond such basic concerns regarding the nature of the edges in a graph, it is necessary to have a language for discussing the connectivity of a graph. The most basic notion of connectivity is that of adjacency. Two vertices u, v ∈ V are said to be adjacent if joined by an edge in E. Such vertices are also referred to as neighbors. For example, the three neighbors of vertex 5 in our toy graph g are
+```{r}
+neighbors(g, 5)
+```
+Similarly, two edges e<sub>1</sub>,e<sub>2</sub> ∈ E are adjacent if joined by a common endpoint in V. A vertex v∈V is incident on an edge e∈E if v is an endpoint of e. From this follows the notion of the degree of a vertex v, say dv, defined as the number of edges incident on v.
+
+```{r}
+degree(g)
+```
+For digraphs, vertex degree is replaced by in-degree and out-degree v, which count the number of edges pointing in towards and out from a vertex, respectively.
+
+```{r}
+degree(dg, mode="in")
+degree(dg, mode="out")
+```
+
+It is also useful to be able to discuss the concept of movement about a graph. For example, a walk on a graph G, from v0 to vl, is an alternating sequence {v<sub>0</sub>,e<sub>1</sub>,v<sub>1</sub>,e<sub>2</sub>,...,v<sub>l−1</sub>,e<sub>l</sub>,v<sub>l</sub>}, where the endpoints of e<sub>i</sub> are {v<sub>i−1</sub>,v<sub>i</sub>}. The length of this walk is said to be l. Refinements of a walk include trails, which are walks without repeated edges, and paths, which are trails without repeated vertices. A trail for which the beginning and ending vertices are the same is called a circuit. Similarly, a walk of length at least three, for which the beginning and ending vertices are the same, but for which all other vertices are distinct from each other, is called a cycle. Graphs containing no cycles are called acyclic. In a digraph, these notions generalize naturally. For example, a directed walk from v<sub>0</sub> to v<sub>l</sub> proceeds from tail to head along arcs between v<sub>0</sub> and v<sub>l</sub> .
+
+A vertex v in a graph G is said to be reachable from another vertex u if there exists a walk from u to v. The graph G is said to be connected if every vertex is reachable from every other. A component of a graph is a maximally connected subgraph. That is, it is a connected subgraph of G for which the addition of any other remaining vertex in V would ruin the property of connectivity. The toy graph g, for example, is connected
+
+```{r}
+is.connected(g)
+```
+
+and therefore consists of only a single component
+
+```{r message=FALSE}
+clusters(g)
+```
+
+
+For a digraph, there are two variations of the concept of connectedness. A digraph G is weakly connected if its underlying graph (i.e., the result of stripping away the labels ‘tail’ and ‘head’ from G) is connected. It is called strongly connected if every vertex v is reachable from every u by a directed walk. The toy graph dg, for example, is weakly connected but not strongly connected.
+
+```{r message=FALSE}
+is.connected(dg, mode="weak")
+is.connected(dg, mode="strong")
+```
+
+A common notion of distance between vertices on a graph is defined as the length of the shortest path(s) between the vertices (which we set equal to infinity if no such path exists). This distance is often referred to as geodesic distance, with ‘geodesic’ being another name for shortest paths. The value of the longest distance in a graph is called the diameter of the graph. Our toy graph g has diameter
+
+```{r message=FALSE}
+diameter(g, weights=NA)
+```
+
+###Special Types of Graphs
+Graphs come in all ‘shapes and sizes,’ as it were, but there are a number of families of graphs that are commonly encountered in practice. We illustrate this notion with the examples of four such families shown below.
+
+```{r message=FALSE}
+g.full <- graph.full(7)
+g.ring <- graph.ring(7)
+g.tree <- graph.tree(7, children=2, mode="undirected") 
+g.star <- graph.star(7, mode="undirected")
+par(mfrow=c(2, 2))
+plot(g.full)
+plot(g.ring)
+plot(g.tree)
+plot(g.star)
+```
+
+A complete graph is a graph where every vertex is joined to every other vertex by an edge. This concept is perhaps most useful in practice through its role in defining a clique, which is a complete subgraph. 
+
+A regular graph is a graph in which every vertex has the same degree. A regular graph with common degree d is called d-regular. 
+
+A connected graph with no cycles is called a tree. The disjoint union of such graphs is called a forest. Trees are of fundamental importance in the analysis of networks. They serve, for example, as a key data structure in the efficient design of many computational algorithms. A digraph whose underlying graph is a tree is called a directed tree. Often such trees have associated with them a special vertex called a root, which is distinguished by being the only vertex from which there is a directed path to every other vertex in the graph. Such a graph is called a rooted tree. A vertex preceding another vertex on a path from the root is called an ancestor, while a vertex following another vertex is called a descendant. Immediate ances- tors are called parents, and immediate descendants, children. A vertex without any children is called a leaf. The distance from the root to the farthest leaf is called the depth of the tree.
+
+Given a rooted tree of this sort, it is not uncommon to represent it diagrammatically without any indication of its directedness, as this is to be understood from the definition of the root. Such a representation of a tree is shown in Fig. Treating vertex 1 as the root, this is a tree of depth 2, wherein each vertex (excluding the leafs) is the ancestor of two descendants.
+
+A k-star is a special case of a tree, consisting only of one root and k leaves. Such graphs are useful for conceptualizing a vertex and its immediate neighbors (ignoring any connectivity among the neighbors). A representation of a 6-star is given in Fig.
+
+An important generalization of the concept of a tree is that of a directed acyclic graph (i.e., the DAG). A DAG, as its name implies, is a graph that is directed and that has no directed cycles. However, unlike a directed tree, its underlying graph is not necessarily a tree, in that replacing the arcs with undirected edges may leave a graph that contains cycles. Our toy graph dg, for example, is directed but not a DAG
+
+```{r message=FALSE}
+is.dag(dg)
+```
+
+since it contains a mutual edge, hence a 2-cycle. Nevertheless, it is often possible to still design efficient computational algorithms on DAGs that take advantage of this near-tree-like structure.
+
+Lastly, a bipartite graph is a graph G = (V,E) such that the vertex set V may be partitioned into two disjoint sets, say V<sub>1</sub> and V<sub>2</sub>, and each edge in E has one endpoint in V<sub>1</sub> and the other in V<sub>2</sub>. Such graphs typically are used to represent ‘mem-bership’ networks, for example, with ‘members’ denoted by vertices in V1, and the corresponding ‘organizations’, by vertices in V2. For example, they are popular in studying the relationship between actors and movies, where actors and movies play the roles of members and organizations, respectively.
+```{r message=FALSE}
+g.bip <- graph.formula(actor1:actor2:actor3, movie1:movie2, actor1:actor2 - movie1, actor2:actor3 - movie2)
+V(g.bip)$type <- grepl("movie", V(g.bip)$name) 
+print_all(g.bip, v=T)
+plot(g.bip,layout = layout_as_bipartite,vertex.color=c("green","cyan")[V(g.bip)$type+1])
+```
+
+It is not uncommon to accompany a bipartite graph with at least one of two
+possible induced graphs. Specifically, a graph G1 = (V1,E1) may be defined on the vertex set V1 by assigning an edge to any pair of vertices that both have edges in E to at least one common vertex in V2. Similarly, a graph G2 may be defined on V2.
+
+Each of these graphs is called a projection onto its corresponding vertex subset. For example, the projection of the actor-movie network ``g.bip`` onto its two vertex subsets yields
+```{r message=FALSE}
+proj <- bipartite.projection(g.bip) 
+print_all(proj[[1]])
+print_all(proj[[2]])
+```
+
+Within the actor network, actor2 is adjacent to both actor1 and actor3, as the former actor was in movies with each of the latter actors, although these latter were not themselves in any movies together, and hence do not share an edge. The movie network consists simply of a single edge defined by movie1 and movie2, since these movies had actors in common.
+
+#Visualizing Network Data
+##Elements of Graph Visualization
+
+At the heart of graph visualization is the graph layout, i.e., the placement of vertices and edges in space. There are far too many graph layout methods for us to present a full survey here. Rather, we discuss a handful of representative examples.
+We will illustrate using two network graphs—a 5 × 5 × 5 lattice
+
+```{r message=FALSE}
+library(sand)
+g.l <- graph.lattice(c(5, 5, 5))
+```
+
+```{r message=FALSE}
+data(aidsblog)
+summary(aidsblog)
+```
+
+The blog network is a snapshot of the pattern of citation among 146 unique blogs related to AIDS, patients, and their support networks, collected by Gopal over a randomly selected three-day period in August 2005. A directed edge from one blog to another indicates that the former has a link to the latter in their web page (more specifically, the former refers to the latter in their so-called ‘blogroll’).
+
+Note that both graphs are of roughly the same order (125 and 146 vertices, re- spectively), although the former has almost twice as many edges as the latter (300 versus 187). The lattice, however, is by definition highly uniform in its connectivity across vertices, whereas the blog network is not.
+
+The simplest layout is a circular layout, wherein the vertices are arranged (usually equi-spaced) around the circumference of a circle. The edges are then drawn across the circle.
+
+```{r message=FALSE}
+igraph.options(vertex.size=3, vertex.label=NA, edge.arrow.size=0.5)
+par(mfrow=c(1, 2))
+plot(g.l, layout=layout.circle) 
+title("5x5x5 Lattice") 
+plot(aidsblog, layout=layout.circle)
+title("Blog Network")
+```
+
+The visualization of the lattice is much more pleasing to the eye than that of the blog network, largely due to the low level of edge-crossings through the center of the circle. Ordering of the vertices around the circle is important with this type of layout—a random re-ordering of the vertices in the lattice, for example, would yield a picture much more like that of the blog network. Common vertex orderings for circular layouts include ordering by degree and grouping by common vertex attributes.
+
+Often more effective for creating useful drawings are layouts based on exploiting analogies between the relational structure in graphs and the forces among elements in physical systems. One approach in this area, and the earliest proposed, is to introduce attractive and repulsive forces by associating vertices with balls and edges with springs. If a literal system of balls connected by springs is disrupted, thereby stretching some of the springs and compressing others, upon being let go it will return to its natural state. So-called spring-embedder methods of graph drawing define a notion of force for each vertex in the graph depending, at the very least, on the positions of pairs of vertices and the distances between them, and seek to iteratively update the placement of vertices until a vector of net forces across vertices converges.
+
+```{r message=FALSE}
+plot(g.l, layout=layout.fruchterman.reingold)
+title("5x5x5 Lattice")
+plot(aidsblog, layout=layout.fruchterman.reingold) 
+title("Blog Network")
+```
+
+we see that substantially more of the structure inherent to each network is now visible.
+
+Alternatively, motivated by the fact that it is possible to associate the collection of forces in spring systems with an overall system energy, another common approach to generating layouts is that of energy-placement methods. An energy, as a function of vertex positions, ostensibly is defined using expressions motivated by those found in physics. A vertex placement is chosen which minimizes the total system energy. A physical system with minimum energy is typically in its most relaxed state, and hence the assertion here is that a graph drawn according to similar principles should be visually appealing.
+
+Methods based on multidimensional scaling (MDS), which have a long history in the social network literature, are of this type.
+
+```{r message=FALSE}
+plot(g.l, layout=layout.kamada.kawai)
+title("5x5x5 Lattice")
+plot(aidsblog, layout=layout.kamada.kawai)
+title("Blog Network")
+```
+
+the resulting visualizations of our lattice and blog networks are similar in spirit to
+those obtained using Fruchterman–Reingold. 
+
+
+In some cases, network graphs have special structure that it is desirable to accentuate. Trees are one such case. 
+
+```{r message=FALSE}
+g.tree <- graph.formula(1-+2,1-+3,1-+4,2-+5,2-+6,2-+7, 3-+8,3-+9,4-+10)
+par(mfrow=c(1, 3))
+igraph.options(vertex.size=30, edge.arrow.size=0.5,
+vertex.label=NULL)
+plot(g.tree, layout=layout.circle)
+plot(g.tree, layout=layout.reingold.tilford(g.tree, circular=T))
+plot(g.tree, layout=layout.reingold.tilford)
+```
+
+With the circular layout, it is not obvious that the graph is a tree. However, with both the radial layout—in which edges radiate outward on concentric circles—and the layered layout, the structure of the graph is immediately apparent.
+
+Similarly, bipartite graphs often are laid out with the two sets of vertices running across opposing rows (or down opposing columns)—one type of vertex within each ow (column)—and with edges running between the rows (columns), in a manner reminiscent of railroad tracks. 
+
+
+```{r message=FALSE}
+plot(g.bip, layout=-layout.bipartite(g.bip)[,2:1], vertex.size=30, vertex.shape=ifelse(V(g.bip)$type,
+"rectangle", "circle"), vertex.color=ifelse(V(g.bip)$type, "red", "cyan"))
+```
+
+###Decorating Graph Layouts
+
+While the relative positions of vertices and the placement of edges between them is clearly important in visualizing network graphs, additional network information— when available—can be incorporated into visualizations by varying characteristics like the size, shape, and color of vertices and edges. In particular, such techniques allow for the visualization of decorated graphs.
+
+Consider, for example, the so-called ‘karate club network’ of Zachary. Nodes represent members of a karate club observed by Zachary for roughly 2 years during the 1970s, and links connecting two nodes indicate social interactions between the two corresponding members. This dataset is somewhat unique in that Zachary had the curious fortune (from a scientific perspective) to witness the club split into two different clubs during his period of observation, due to a dispute between the head teacher and an administrator. Attribute information available for this network includes identification of the head teacher and the administrator, membership in one of the two factions underlying the eventual split, and relative frequency of interactions between members. While clearly more involved than just issuing a simple call to plot(), it is nevertheless straightforward to incorporate all of this information into a visualization of this network.
+
+```{r message=FALSE}
+library(igraphdata)
+data(karate)
+# Reproducible layout
+set.seed(42)
+l <- layout.kamada.kawai(karate)
+# Plot undecorated first.
+igraph.options(vertex.size=10)
+par(mfrow=c(1,1))
+plot(karate, layout=l, vertex.label=V(karate))
+# Now decorate, starting with labels.
+V(karate)$label <- sub("Actor ", "", V(karate)$name) 
+# Two leaders get shapes different from club members.
+V(karate)$shape <- "circle"
+V(karate)[c("Mr Hi", "John A")]$shape <- "rectangle"  
+# Differentiate two factions by color.
+V(karate)[Faction == 1]$color <- "red"
+V(karate)[Faction == 2]$color <- "dodgerblue"
+# Vertex area proportional to vertex strength
+# (i.e., total weight of incident edges). 
+V(karate)$size <- 4*sqrt(graph.strength(karate)) 
+V(karate)$size2 <- V(karate)$size * .5
+# Weight edges by number of common activities 
+E(karate)$width <- E(karate)$weight
+# Color edges by within/between faction.
+F1 <- V(karate)[Faction==1]
+F2 <- V(karate)[Faction==2]
+E(karate)[ F1 %--% F1 ]$color <- "pink" 
+E(karate)[ F2 %--% F2 ]$color <- "lightblue" 
+E(karate)[ F1 %--% F2 ]$color <- "yellow"
+# Offset vertex labels for smaller points (default=0). 
+V(karate)$label.dist <-ifelse(V(karate)$size >= 10, 0, 0.75) 
+# Plot decorated graph, using same layout. 
+plot(karate, layout=l)
+```
+
+
+A substantial amount of additional information is communicated by way of the decorated visualization, where vertices are sized in proportion to their (weighted) degree, the relative frequency of interactions is shown using edge thickness, a change in vertex shape indicates the faction leaders, and colors are used to distinguish membership in the factions as well as edges joining within versus between the same factions.
+
+Note that within **igraph**, supplying the graphical parameters to the plotting command is an alternative to setting them as vertex and edge attributes. We demonstrate below.
+
+
+```{r message=FALSE}
+library(sand)
+data(lazega)
+# Office location indicated by color.
+colbar <- c("red", "dodgerblue", "goldenrod") 
+v.colors <- colbar[V(lazega)$Office]
+# Type of practice indicated by vertex shape. 
+v.shapes <- c("circle", "square")[V(lazega)$Practice] 
+# Vertex size proportional to years with firm. 
+v.size <- 3.5*sqrt(V(lazega)$Years)
+# Label vertices according to seniority.
+v.label <- V(lazega)$Seniority
+# Reproducible layout.
+set.seed(42)
+l <- layout.fruchterman.reingold(lazega)
+plot(lazega, layout=l, vertex.color=v.colors, vertex.shape=v.shapes, vertex.size=v.size, vertex.label=v.label)
+```
+
+
+###Visualizing Large Networks
+
+Despite their sophistication, for all of the methods described so far, the graph drawings will tend to look increasingly cluttered as the number of vertices N<sub>v</sub> nears 100 or so—and simply unintelligible for thousands of vertices or more—due to the finiteness of the available space and resolution.
+
+For example, below is shown a visualization of a subnetwork of French political blogs, extracted from a snapshot of over 1,100 such blogs on a single day in October of 2006 and classified by the “Observatoire Presidentielle” project as to political affiliation. The network consists of 192 blogs linked by 1,431 edges, the latter indicating that at least one of the two blogs referenced the other.
+
+```{r message=FALSE}
+library(sand)
+summary(fblog)
+```
+
+Nine political parties are represented among these blogs, and have been included as vertex attributes.
+
+```{r message=FALSE}
+party.names <- sort(unique(V(fblog)$PolParty))
+party.names
+```
+
+The visualization shown was produced using a layout generated by the standard Kamada–Kawai method.
+
+```{r message=FALSE}
+set.seed(42)
+l = layout.kamada.kawai(fblog)
+party.nums.f <- as.factor(V(fblog)$PolParty) 
+party.nums <- as.numeric(party.nums.f) 
+plot(fblog, layout=l, vertex.label=NA, vertex.color=party.nums, vertex.size=3)
+```
+
+Note that, while it is indeed possible, with a bit of effort and the aid of color indicating political party affiliation, to distinguish some structure, the plot is nevertheless rather ‘busy’.
+
+
+Another such example is the DrL method, which is based on VxOrd and is implemented in igraph. Applied to the French political blog data.
+
+```{r message=FALSE}
+set.seed(42)
+l <- layout.drl(fblog)
+plot(fblog, layout=l, vertex.size=5, vertex.label=NA, vertex.color=party.nums)
+```
+
+we find that the method has clustered blogs in a way that is strongly influenced by certain of the party affiliations, despite not having had this information.
+
+When such clustering exists and may be characterized explicitly, either because it occurs with respect to a measured variable or because it is inferred through so-called graph partitioning methods, it may be useful to coarsen a network graph prior to visualization, replacing groups of vertices with single meta-vertices. This is demonstrated on the French political blog data in below. Having first coarsened the network, by aggregating edges between groups,
+
+```{r message=FALSE}
+fblog.c <- contract.vertices(fblog, party.nums) 
+E(fblog.c)$weight <- 1
+fblog.c <- simplify(fblog.c)
+```
+
+we plot the resulting network.
+
+```{r message=FALSE}
+party.size <- as.vector(table(V(fblog)$PolParty)) 
+plot(fblog.c, vertex.size=5*sqrt(party.size),vertex.label=party.names, vertex.color=V(fblog.c), edge.width=sqrt(E(fblog.c)$weight), vertex.label.dist=1.5, edge.arrow.size=0)
+```
+
+In the resulting visualization, the size of the groups defined by political parties in the original network, and the numbers of edges between those groups, are reflected in vertex size and edge thickness, respectively. 
+
+Alternatively, specific information we desire to be communicated through a network visualization might suggest that only a relevant subgraph(s) be shown. For example, sometimes it is useful to highlight the structure local to a given vertex, such as in the so-called egocentric network visualizations commonly used in the social network literature, which show the vertex, its immediate neighbors, and all edges among them.
+
+As an illustration, consider again the karate network. Extracting the (first-order) neighborhoods surrounding each vertex
+
+```{r message=FALSE}
+data(karate)
+k.nbhds <- graph.neighborhood(karate, order=1)
+```
+
+we see, for example, that the neighborhoods pertaining to the head instructor (Mr Hi, vertex 1) and administrator (John A, vertex 34) are the largest.
+
+```{r message=FALSE}
+sapply(k.nbhds, vcount)
+```
+
+Pulling out these two largest subnetworks and plotting them,
+
+```{r message=FALSE}
+k.1 <- k.nbhds[[1]]
+k.34 <- k.nbhds[[34]] 
+par(mfrow=c(1,2)) 
+plot(k.1, vertex.label=NA, vertex.color=c("red", rep("lightblue", 16))) 
+plot(k.34, vertex.label=NA, vertex.color=c(rep("lightblue", 17), "red"))
+```
+
+Comparing these plots to that of the full karate network, it is clear that these two subnetworks capture the vast majority of the structure in the full network.
+
+
+
