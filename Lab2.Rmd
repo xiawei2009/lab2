@@ -1,5 +1,5 @@
 ---
-title: "Graphs & Visualizing graphs (Chapter 2&3 of SANDr)"
+title: "Graphs & Visualizing graphs (Chapter 2&3 of SANDr) lab2"
 output: html_document
 ---
 
